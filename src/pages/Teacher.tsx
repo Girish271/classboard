@@ -1,7 +1,12 @@
 import { useState } from 'react';
+
 import UploadPanel from '../components/UploadPanel';
 import MaterialCard from '../components/MaterialCard';
+
 import { useAuth } from '../hooks/useAuth';
+
+import { deleteMaterialFromServer } from '../services/data';
+
 import {
   useAcademicGroups,
   useAcademicSubjects,
@@ -11,7 +16,7 @@ import {
 } from '../hooks/useRealtime';
 
 export default function Teacher() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
 
   const departments = useDepartments();
 
@@ -29,11 +34,16 @@ export default function Teacher() {
 
   const [subjectId, setSubjectId] = useState('');
 
-  const academicGroups = useAcademicGroups(departmentId);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const sections = useSections(academicGroupId);
+  const academicGroups =
+    useAcademicGroups(departmentId);
 
-  const subjects = useAcademicSubjects(academicGroupId);
+  const sections =
+    useSections(academicGroupId);
+
+  const subjects =
+    useAcademicSubjects(academicGroupId);
 
   const materials = useMaterials(
     undefined,
@@ -41,34 +51,89 @@ export default function Teacher() {
     sectionId
   );
 
-  const selectedDepartment = departments.find(
-    (x) => x.id === departmentId
-  );
+  const selectedDepartment =
+    departments.find(
+      (x) => x.id === departmentId
+    );
 
-  const selectedGroup = academicGroups.find(
-    (x) => x.id === academicGroupId
-  );
+  const selectedGroup =
+    academicGroups.find(
+      (x) => x.id === academicGroupId
+    );
 
-  const selectedSection = sections.find(
-    (x) => x.id === sectionId
-  );
+  const selectedSection =
+    sections.find(
+      (x) => x.id === sectionId
+    );
+
+  // ============================================================
+  // DELETE MATERIAL
+  // ============================================================
+
+  async function handleDelete(
+    material: typeof materials[number]
+  ) {
+    if (!user) return;
+
+    const confirmed = window.confirm(
+      `Delete "${material.originalName || material.name}"?\n\nThis will permanently remove the file from ClassBoard.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setDeletingId(material.id);
+
+      const token =
+        await user.getIdToken();
+
+      await deleteMaterialFromServer(
+        material.id,
+        token
+      );
+    } catch (error) {
+      console.error(
+        'Delete failed:',
+        error
+      );
+
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : 'Failed to delete material.'
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   return (
     <div className="mx-auto max-w-6xl">
+
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
 
       <p className="text-sm font-bold text-brand">
         TEACHER
       </p>
 
       <h1 className="mt-1 text-3xl font-extrabold">
-        Good day, {profile?.name?.split(' ')[0] || 'Teacher'} 👋
+        Good day,{' '}
+        {profile?.name?.split(' ')[0] ||
+          'Teacher'}{' '}
+        👋
       </h1>
 
       <p className="mt-2 text-slate-500">
-        Get material onto the classroom board in seconds.
+        Get material onto the classroom board
+        in seconds.
       </p>
 
-      {/* Academic selection */}
+
+      {/* ======================================================
+          ACADEMIC SELECTION
+      ====================================================== */}
 
       <section className="mt-7 card p-6">
 
@@ -82,9 +147,10 @@ export default function Teacher() {
           </p>
         </div>
 
+
         <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
-          {/* Department */}
+          {/* DEPARTMENT */}
 
           <label>
             <span className="label">
@@ -95,7 +161,10 @@ export default function Teacher() {
               className="field"
               value={departmentId}
               onChange={(e) => {
-                setDepartmentId(e.target.value);
+                setDepartmentId(
+                  e.target.value
+                );
+
                 setAcademicGroupId('');
                 setSectionId('');
                 setSubjectId('');
@@ -105,19 +174,22 @@ export default function Teacher() {
                 Select department
               </option>
 
-              {departments.map((department) => (
-                <option
-                  key={department.id}
-                  value={department.id}
-                >
-                  {department.code} — {department.name}
-                </option>
-              ))}
+              {departments.map(
+                (department) => (
+                  <option
+                    key={department.id}
+                    value={department.id}
+                  >
+                    {department.code} —{' '}
+                    {department.name}
+                  </option>
+                )
+              )}
             </select>
           </label>
 
 
-          {/* Year */}
+          {/* ACADEMIC YEAR */}
 
           <label>
             <span className="label">
@@ -129,7 +201,10 @@ export default function Teacher() {
               value={academicGroupId}
               disabled={!departmentId}
               onChange={(e) => {
-                setAcademicGroupId(e.target.value);
+                setAcademicGroupId(
+                  e.target.value
+                );
+
                 setSectionId('');
                 setSubjectId('');
               }}
@@ -139,7 +214,10 @@ export default function Teacher() {
               </option>
 
               {academicGroups
-                .sort((a, b) => a.year - b.year)
+                .sort(
+                  (a, b) =>
+                    a.year - b.year
+                )
                 .map((group) => (
                   <option
                     key={group.id}
@@ -152,7 +230,7 @@ export default function Teacher() {
           </label>
 
 
-          {/* Section */}
+          {/* SECTION */}
 
           <label>
             <span className="label">
@@ -164,7 +242,10 @@ export default function Teacher() {
               value={sectionId}
               disabled={!academicGroupId}
               onChange={(e) => {
-                setSectionId(e.target.value);
+                setSectionId(
+                  e.target.value
+                );
+
                 setSubjectId('');
               }}
             >
@@ -172,19 +253,21 @@ export default function Teacher() {
                 Select section
               </option>
 
-              {sections.map((section) => (
-                <option
-                  key={section.id}
-                  value={section.id}
-                >
-                  Section {section.name}
-                </option>
-              ))}
+              {sections.map(
+                (section) => (
+                  <option
+                    key={section.id}
+                    value={section.id}
+                  >
+                    Section {section.name}
+                  </option>
+                )
+              )}
             </select>
           </label>
 
 
-          {/* Subject */}
+          {/* SUBJECT */}
 
           <label>
             <span className="label">
@@ -196,52 +279,67 @@ export default function Teacher() {
               value={subjectId}
               disabled={!academicGroupId}
               onChange={(e) =>
-                setSubjectId(e.target.value)
+                setSubjectId(
+                  e.target.value
+                )
               }
             >
               <option value="">
                 Select subject
               </option>
 
-              {subjects.map((subject) => (
-                <option
-                  key={subject.id}
-                  value={subject.id}
-                >
-                  {subject.name}
-                </option>
-              ))}
+              {subjects.map(
+                (subject) => (
+                  <option
+                    key={subject.id}
+                    value={subject.id}
+                  >
+                    {subject.name}
+                  </option>
+                )
+              )}
             </select>
           </label>
 
         </div>
 
+
+        {/* SELECTED CLASSROOM */}
+
         {selectedDepartment &&
           selectedGroup &&
           selectedSection && (
             <div className="mt-5 rounded-xl bg-mint p-4 text-sm font-semibold text-brand">
-              {selectedDepartment.code} ·{' '}
-              {selectedGroup.yearLabel} ·{' '}
-              Section {selectedSection.name}
+              {selectedDepartment.code}{' '}
+              ·{' '}
+              {selectedGroup.yearLabel}{' '}
+              · Section{' '}
+              {selectedSection.name}
             </div>
           )}
 
       </section>
 
 
-      {/* Upload */}
+      {/* ======================================================
+          UPLOAD
+      ====================================================== */}
 
       <div className="mt-7">
         <UploadPanel
           departmentId={departmentId}
-          academicGroupId={academicGroupId}
+          academicGroupId={
+            academicGroupId
+          }
           sectionId={sectionId}
           subjectId={subjectId}
         />
       </div>
 
 
-      {/* Recent materials */}
+      {/* ======================================================
+          RECENT MATERIALS
+      ====================================================== */}
 
       <section className="mt-8">
 
@@ -253,7 +351,8 @@ export default function Teacher() {
             </h2>
 
             <p className="mt-1 text-sm text-slate-500">
-              Materials uploaded to the selected classroom.
+              Materials uploaded to the
+              selected classroom.
             </p>
           </div>
 
@@ -261,25 +360,38 @@ export default function Teacher() {
 
 
         {!sectionId ? (
+
           <div className="card p-8 text-center text-slate-500">
-            Select a department, year and section to see
-            materials.
+            Select a department, year and
+            section to see materials.
           </div>
+
         ) : materials.length ? (
+
           <div className="space-y-3">
+
             {materials
               .slice(0, 8)
               .map((m) => (
+
                 <MaterialCard
                   key={m.id}
                   m={m}
+                  onDelete={() =>
+                    handleDelete(m)
+                  }
                 />
+
               ))}
+
           </div>
+
         ) : (
+
           <div className="card p-8 text-center text-slate-500">
             No materials uploaded yet.
           </div>
+
         )}
 
       </section>

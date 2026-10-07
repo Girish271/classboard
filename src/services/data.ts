@@ -395,3 +395,39 @@ export const addGroupSubject = (
     ),
     x
   );
+
+  // ============================================================
+// SERVER-SIDE MATERIAL DELETE
+// Deletes both GitHub file + Firestore record
+// ============================================================
+
+export const deleteMaterialFromServer = async (
+  id: string,
+  token: string
+) => {
+  const baseUrl =
+    import.meta.env.VITE_API_BASE_URL ||
+    'http://localhost:8787';
+
+  const response = await fetch(
+    `${baseUrl}/api/material/${id}`,
+    {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data?.error ||
+        'Failed to delete material.'
+    );
+  }
+
+  return data;
+};
+

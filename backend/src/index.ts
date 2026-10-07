@@ -460,6 +460,161 @@ app.post(
   }
 );
 
+// ============================================================
+// DELETE MATERIAL
+// ============================================================
+
+app.delete(
+  '/api/material/:id',
+  auth,
+  async (req, res) => {
+    try {
+      if (missing.length) {
+        return res.status(503).json({
+          error: `Backend configuration missing: ${missing.join(', ')}`,
+        });
+      }
+
+      const materialId = String(req.params.id || '');
+
+      if (!materialId) {
+        return res.status(400).json({
+          error: 'Material ID is required.',
+        });
+      }
+
+      const firestore = getFirestore();
+
+      const materialRef = firestore
+        .collection('files')
+        .doc(materialId);
+
+      const materialSnap = await materialRef.get();
+
+      if (!materialSnap.exists) {
+        return res.status(404).json({
+          error: 'Material not found.',
+        });
+      }
+
+      const material = materialSnap.data() as {
+        githubPath?: string;
+        url?: string;
+        uploadedBy?: string;
+      };
+
+      // --------------------------------------------------------
+      // GITHUB PATH
+      // --------------------------------------------------------
+
+      const githubPath = material.githubPath;
+
+      if (!githubPath) {
+        return res.status(400).json({
+          error:
+            'This material does not have a GitHub path and cannot be deleted automatically.',
+        });
+      }
+
+      const owner = process.env.GITHUB_OWNER!;
+      const repo = process.env.GITHUB_REPO!;
+      const branch = process.env.GITHUB_BRANCH!;
+
+      // --------------------------------------------------------
+      // GET FILE SHA FROM GITHUB
+      // --------------------------------------------------------
+
+      const githubFileResponse = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/contents/${githubPath}?ref=${branch}`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+            Accept: 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28',
+          },
+        }
+      );
+
+      const githubFileData: any =
+        await githubFileResponse.json();
+
+      if (!githubFileResponse.ok) {
+        return res.status(502).json({
+          error:
+            githubFileData?.message
+              ? `GitHub lookup failed: ${githubFileData.message}`
+              : 'GitHub lookup failed.',
+        });
+      }
+
+      const sha = githubFileData.sha;
+
+      if (!sha) {
+        return res.status(502).json({
+          error: 'GitHub file SHA could not be determined.',
+        });
+      }
+
+      // --------------------------------------------------------
+      // DELETE FROM GITHUB
+      // --------------------------------------------------------
+
+      const githubDeleteResponse = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/contents/${githubPath}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+            Accept: 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: `Delete ${githubPath.split('/').pop()}`,
+            sha,
+            branch,
+          }),
+        }
+      );
+
+      const githubDeleteData: any =
+        await githubDeleteResponse.json();
+
+      if (!githubDeleteResponse.ok) {
+        return res.status(502).json({
+          error:
+            githubDeleteData?.message
+              ? `GitHub deletion failed: ${githubDeleteData.message}`
+              : 'GitHub deletion failed.',
+        });
+      }
+
+      // --------------------------------------------------------
+      // DELETE FIRESTORE RECORD
+      // --------------------------------------------------------
+
+      await materialRef.delete();
+
+      return res.json({
+        ok: true,
+        message: 'Material deleted successfully.',
+      });
+
+    } catch (error) {
+      console.error(
+        'Delete material error:',
+        error
+      );
+
+      return res.status(500).json({
+        error:
+          'Failed to delete material.',
+      });
+    }
+  }
+);
+
 
 // ============================================================
 // GLOBAL ERROR HANDLER

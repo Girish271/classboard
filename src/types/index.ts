@@ -72,4 +72,6 @@ export interface Material {
   uploadedAt: any;
   fileType: string;
   fileSize: number;
+
+  githubPath?: string;
 }
