@@ -1,0 +1,1 @@
+export const bytes=(n:number)=>n<1024?`${n} B`:n<1048576?`${(n/1024).toFixed(1)} KB`:`${(n/1048576).toFixed(1)} MB`;export const when=(x:any)=>{const d=x?.toDate?.()??(x?new Date(x):null);return d?d.toLocaleString():'Just now'};

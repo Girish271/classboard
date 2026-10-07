@@ -1,0 +1,198 @@
+CLASSBOARD — BEGINNER SETUP GUIDE
+=================================
+Goal: Teacher uploads one file → GitHub stores it → Firestore stores metadata → Board and Student see it in realtime.
+
+STEP 1 — Install prerequisites
+WHERE: Your computer.
+WHAT TO DO: Install Node.js LTS, Git, and VS Code. Node 20+ is recommended.
+COMMAND: node -v   then   npm -v
+EXPECTED RESULT: Both commands print version numbers.
+
+STEP 2 — Open project
+WHERE: VS Code.
+WHAT TO DO: Open the `classboard` folder (the folder containing package.json).
+EXPECTED RESULT: You can see src, backend, README.md and this file.
+
+STEP 3 — Install dependencies
+WHERE: VS Code Terminal, in classboard root.
+COMMAND: npm install
+COMMAND: cd backend && npm install && cd ..
+EXPECTED RESULT: Both installs finish without errors and node_modules folders exist.
+
+STEP 4 — Create Firebase project
+WHERE: https://console.firebase.google.com
+WHAT TO DO: Add project → name it ClassBoard → Analytics can be disabled for this MVP → Create project.
+EXPECTED RESULT: Firebase project dashboard opens.
+
+STEP 5 — Enable Email/Password Authentication
+WHERE: Firebase Console → Build → Authentication → Get started → Sign-in method.
+WHAT TO DO: Open Email/Password → enable Email/Password → Save. Do not enable Email link unless you want it separately.
+EXPECTED RESULT: Email/Password shows Enabled.
+
+STEP 6 — Create Firestore
+WHERE: Firebase Console → Build → Firestore Database.
+WHAT TO DO: Create database → choose a nearby production location → Start in production mode.
+EXPECTED RESULT: Firestore Data page opens. It can initially be empty.
+
+STEP 7 — Configure Firebase frontend
+WHERE: Firebase Console → Project settings (gear) → General → Your apps.
+WHAT TO DO: Add app → Web (`</>`) → nickname `ClassBoard Web` → Register app. Copy the firebaseConfig values.
+FILE: `.env.example`
+CHANGE: Copy it to a new file named `.env`, then fill every `VITE_FIREBASE_*` value. Keep `VITE_API_BASE_URL=http://localhost:8787` for local development.
+COMMAND (Windows PowerShell): Copy-Item .env.example .env
+COMMAND (macOS/Linux): cp .env.example .env
+EXPECTED RESULT: `.env` has six real Firebase web values. `.env` is ignored by Git.
+
+STEP 8 — Create Firestore collections
+WHERE: Firebase Console → Firestore → Data.
+WHAT TO DO: You do not need to pre-create empty collections. ClassBoard creates `classes`, `subjects`, and `files` when data is added. You WILL manually create `users` documents in later steps because roles must be assigned safely.
+EXPECTED RESULT: No error; an empty Firestore is okay.
+
+STEP 9 — Configure Firestore rules and indexes
+WHERE: Terminal in classboard root.
+WHAT TO DO: Install Firebase CLI, log in, connect this folder to your Firebase project, then deploy rules/indexes.
+COMMAND: npm install -g firebase-tools
+COMMAND: firebase login
+COMMAND: firebase use --add
+WHAT TO SELECT: Choose your ClassBoard Firebase project and give it alias `default`.
+COMMAND: firebase deploy --only firestore:rules,firestore:indexes
+EXPECTED RESULT: CLI says rules/indexes deployed successfully. If an index is still building, Firebase Console → Firestore → Indexes will show its status; wait until Enabled before testing filtered material lists.
+
+STEP 10 — Create GitHub repository
+WHERE: GitHub → New repository.
+WHAT TO DO: Name it `classboard-files`. For this prototype choose PUBLIC so returned raw/download URLs work for Board and Student without GitHub authentication. Initialize however you prefer.
+EXPECTED RESULT: An empty/public `classboard-files` repository exists.
+
+STEP 11 — Create GitHub token
+WHERE: GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token.
+WHAT TO DO: Limit repository access to ONLY `classboard-files`. Give Repository permissions → Contents → Read and write. Choose a sensible expiration.
+EXPECTED RESULT: GitHub shows the token once. Copy it somewhere secure. NEVER put it in the frontend `.env`.
+
+STEP 12 — Configure backend environment variables
+WHERE: `backend/.env.example`.
+WHAT TO DO: Copy it to `backend/.env`.
+COMMAND (Windows PowerShell): Copy-Item backend/.env.example backend/.env
+COMMAND (macOS/Linux): cp backend/.env.example backend/.env
+FILE: `backend/.env`
+CHANGE: Set GITHUB_TOKEN to the fine-grained token, GITHUB_OWNER to your GitHub username/org, GITHUB_REPO=classboard-files, GITHUB_BRANCH=main.
+EXPECTED RESULT: GitHub values are present only in backend/.env, which is gitignored.
+
+STEP 13 — Configure Firebase Admin + start backend
+WHERE: Firebase Console → Project settings → Service accounts → Firebase Admin SDK.
+WHAT TO DO: Generate new private key → confirm → download JSON. Open it locally. Copy `project_id` to FIREBASE_PROJECT_ID, `client_email` to FIREBASE_CLIENT_EMAIL, and `private_key` to FIREBASE_PRIVATE_KEY in `backend/.env`. Keep the private key inside quotes and preserve its `\n` escapes. Do NOT commit the downloaded JSON; delete/move it securely after copying the required values.
+WHERE: Terminal.
+COMMAND: cd backend
+COMMAND: npm run dev
+EXPECTED RESULT: Terminal prints `ClassBoard upload API on http://localhost:8787`. Opening http://localhost:8787/api/health should return JSON with ok:true and configured:true.
+
+STEP 14 — Start frontend
+WHERE: A SECOND terminal, classboard root.
+COMMAND: npm run dev
+EXPECTED RESULT: Vite prints a local URL, normally http://localhost:5173. Open it and ClassBoard login appears.
+
+STEP 15 — Create admin user
+WHERE: Firebase Console → Authentication → Users → Add user.
+WHAT TO DO: Create an admin email/password. Copy the UID shown for that user.
+WHERE: Firestore → Data → Start collection `users` → Document ID = that exact UID.
+FIELDS: uid (string)=UID; name (string)=Admin; email (string)=the admin email; role (string)=admin
+EXPECTED RESULT: Sign in at /login with the admin account and you are redirected to /admin.
+
+STEP 16 — Create class
+WHERE: ClassBoard /admin.
+WHAT TO DO: In Create class type `CSE-3A` → Create class.
+EXPECTED RESULT: A document appears in Firestore `classes` and the class appears in ClassBoard selectors.
+
+STEP 17 — Create subjects
+WHERE: ClassBoard /admin.
+WHAT TO DO: Select CSE-3A and create these one at a time: Computer Networks; DBMS; ATCD; Probability & Statistics.
+EXPECTED RESULT: Four `subjects` documents exist with the CSE-3A classId.
+
+STEP 18 — Create teacher
+WHERE: Firebase Console → Authentication → Users → Add user.
+WHAT TO DO: Create teacher email/password and copy UID.
+WHERE: Firestore → `users` → Add document. Document ID = teacher UID.
+FIELDS: uid=teacher UID; name=Teacher name; email=teacher email; role=teacher
+EXPECTED RESULT: Teacher can log in and is redirected to /teacher.
+
+STEP 19 — Create student
+WHERE: Firebase Console → Authentication → Users → Add user; then Firestore `users`.
+WHAT TO DO: Create student account. In Firestore add a document with ID=student UID.
+FIELDS: uid=student UID; name=Student name; email=student email; role=student; classId=THE FIRESTORE DOCUMENT ID OF CSE-3A (not the text `CSE-3A` unless they happen to match).
+EXPECTED RESULT: Student logs in → /student and sees subjects/materials for CSE-3A.
+
+STEP 20 — Create board account
+WHERE: Firebase Authentication + Firestore `users` exactly like student.
+FIELDS: uid=board UID; name=CSE-3A Board; email=board email; role=board; classId=CSE-3A Firestore document ID.
+EXPECTED RESULT: Board logs in → /board. Select CSE-3A once if needed. Firebase persists the auth session and ClassBoard remembers only the chosen class ID locally.
+
+STEP 21 — Test teacher upload
+WHERE: /teacher.
+WHAT TO DO: Select CSE-3A → Computer Networks → choose a small PDF named `CN Unit 3.pdf` (under 15 MB) → Upload Material.
+EXPECTED RESULT: Button says Uploading..., then `✓ Material uploaded successfully.`
+
+STEP 22 — Verify GitHub file
+WHERE: GitHub → classboard-files repository.
+WHAT TO DO: Refresh repository.
+EXPECTED RESULT: A path like `<classId>/<subjectId>/<timestamp>-CN-Unit-3.pdf` exists. The token itself is nowhere in the repository.
+
+STEP 23 — Verify Firestore metadata
+WHERE: Firebase Console → Firestore → `files`.
+WHAT TO DO: Open newest document.
+EXPECTED RESULT: It has name/originalName/url/classId/subjectId/subjectName/uploadedBy/uploadedAt/fileType/fileSize. The PDF bytes are NOT stored in Firestore.
+
+STEP 24 — Verify Board Mode
+WHERE: A separate browser/profile/device logged in as board.
+WHAT TO DO: Keep /board open while doing another teacher upload.
+EXPECTED RESULT: The new material appears automatically without refreshing. OPEN launches the public file URL. Full screen button uses browser fullscreen where supported.
+
+STEP 25 — Verify Student Mode
+WHERE: Browser logged in as student.
+WHAT TO DO: Open /student → Computer Networks → open CN Unit 3.
+EXPECTED RESULT: Material appears automatically and Open/Download actions are available.
+
+STEP 26 — Deploy frontend
+WHERE: Terminal, classboard root.
+WHAT TO DO: First set production `VITE_API_BASE_URL` in `.env` to your deployed backend HTTPS URL (Step 27 can be done first if necessary), then build and deploy Hosting.
+COMMAND: npm run build
+COMMAND: firebase deploy --only hosting
+EXPECTED RESULT: Firebase prints your Hosting URL and the SPA opens there.
+
+STEP 27 — Deploy backend
+WHERE: A Node.js host such as Google Cloud Run, Render or Railway.
+WHAT TO DO: Deploy the `backend` directory as a Node service. Build command: `npm install && npm run build`. Start command: `npm start`. Set PORT only if your host requires it; most hosts inject PORT automatically.
+EXPECTED RESULT: `https://YOUR-API/api/health` returns ok:true/configured:true.
+
+STEP 28 — Configure production environment variables
+WHERE: Backend hosting dashboard + local frontend `.env` before production build.
+WHAT TO DO: Backend host: add all variables from backend/.env.example. Set FRONTEND_ORIGIN to your Firebase Hosting origin, e.g. `https://YOUR-PROJECT.web.app`. Frontend: set VITE_API_BASE_URL to backend HTTPS URL. Rebuild/redeploy frontend after changing Vite variables.
+EXPECTED RESULT: Production frontend can call /api/upload without a CORS error and secrets remain server-side.
+
+STEP 29 — Open Board Mode on classroom board
+WHERE: Classroom board browser.
+WHAT TO DO: Open Firebase Hosting URL → login once using the board account → select CSE-3A → optionally press Full screen. Do not save/share the board password outside the browser's normal secure credential/session handling.
+EXPECTED RESULT: Board stays signed in according to Firebase's browser auth persistence and opens the large Board Mode UI on later visits.
+
+STEP 30 — Final end-to-end test
+WHERE: Teacher device + classroom board + student device/browser profiles.
+WHAT TO DO: Teacher logs in → CSE-3A → Computer Networks → uploads CN Unit 3.pdf. Confirm GitHub receives file. Confirm Firestore receives metadata. Watch Board update without refresh. Student opens Computer Networks and opens/downloads the same file.
+EXPECTED RESULT: One upload reaches both Board and Student. That is the MVP acceptance test.
+
+SAMPLE DATA
+-----------
+Class: CSE-3A
+Subjects: Computer Networks, DBMS, ATCD, Probability & Statistics
+Suggested test files: CN Unit 1.pdf, CN Unit 2.pdf, DBMS Unit 1.pdf
+Create these through the Admin/Teacher UI only for testing; production does not depend on sample data.
+
+TROUBLESHOOTING
+---------------
+- "Firebase configuration is missing": check root `.env`, then restart `npm run dev`.
+- "Your account has no user profile": create `/users/<AUTH_UID>` with the exact UID and valid role.
+- Permission denied: deploy `firestore.rules` and check role/classId values.
+- Query requires an index: deploy `firestore.indexes.json` and wait for index status Enabled.
+- Upload 401/403: backend Firebase Admin variables or user's Firestore role is wrong.
+- GitHub 401/403: token/repository Contents permission is wrong or token expired.
+- GitHub 404: verify GITHUB_OWNER, GITHUB_REPO and GITHUB_BRANCH.
+- CORS error in production: set backend FRONTEND_ORIGIN to the exact Firebase Hosting origin and restart backend.
+- File too large: MVP limit is 15 MB.
+- DOC/DOCX/PPT/PPTX does not preview: browser support varies; use Open/Download. PDFs/images are best for direct browser viewing.

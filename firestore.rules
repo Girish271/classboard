@@ -1,0 +1,8 @@
+rules_version = '2';
+service cloud.firestore { match /databases/{database}/documents {
+ function signed(){return request.auth!=null;} function me(){return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;} function role(r){return signed()&&me().role==r;} function sameClass(id){return signed()&&me().classId==id;}
+ match /users/{uid}{allow read: if signed()&&(request.auth.uid==uid||role('admin'));allow write: if role('admin');}
+ match /classes/{id}{allow read:if signed();allow write:if role('admin');}
+ match /subjects/{id}{allow read:if signed();allow write:if role('admin');}
+ match /files/{id}{allow read:if signed()&&(role('admin')||role('teacher')||sameClass(resource.data.classId));allow create:if signed()&&(role('teacher')||role('admin'))&&request.resource.data.uploadedBy==request.auth.uid;allow update,delete:if signed()&&(role('admin')||(role('teacher')&&resource.data.uploadedBy==request.auth.uid));}
+}}

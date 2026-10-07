@@ -1,0 +1,1 @@
+import{BookOpen}from'lucide-react';export default function Logo({large=false}:{large?:boolean}){return <div className="flex items-center gap-2 font-extrabold tracking-tight"><span className="grid h-9 w-9 place-items-center rounded-xl bg-brand text-white"><BookOpen size={20}/></span><span className={large?'text-2xl':'text-xl'}>ClassBoard</span></div>}
